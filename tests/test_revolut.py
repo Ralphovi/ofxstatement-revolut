@@ -1,29 +1,31 @@
+from __future__ import annotations
+
 import csv
 import os
 import tempfile
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import pytest
 from fpdf import FPDF
 from ofxstatement.exceptions import ParseError
 from ofxstatement.ui import UI
 
+from ofxstatement_revolut import is_internal_pocket_transfer
 from ofxstatement_revolut.csv_parser import (
     RevolutCSVFormatError,
     _parse_csv_amount,
 )
 from ofxstatement_revolut.pdf_parser import (
-    RevolutPDFFormatError,
-    RevolutPDFParser,
     _CURRENCY_RE,
     _SECTION_RE,
+    RevolutPDFFormatError,
+    RevolutPDFParser,
     _canonical_section,
     _looks_like_header_row,
     _match_txn_type,
     _parse_date,
 )
-from ofxstatement_revolut import is_internal_pocket_transfer
 from ofxstatement_revolut.plugin import RevolutPlugin
 
 # fpdf mm coordinates that produce the pdfplumber point-coordinates the parser expects
@@ -40,7 +42,7 @@ def _write_section(
     pdf: FPDF,
     y: float,
     header: str,
-    transactions: List[Tuple[str, str, Optional[str], Optional[str], str]],
+    transactions: list[tuple[str, str, str | None, str | None, str]],
 ) -> float:
     """Write a section header, table header, transaction rows, and footer.
 
@@ -75,23 +77,23 @@ def _write_section(
 
 
 # Type alias for sub-account sections: (owner, section_type, transactions)
-_SubAccountSection = Tuple[
-    str, str, List[Tuple[str, str, Optional[str], Optional[str], str]]
+_SubAccountSection = tuple[
+    str, str, list[tuple[str, str, Optional[str], Optional[str], str]]
 ]
 
 
 def _make_pdf(
-    transactions: List[Tuple[str, str, Optional[str], Optional[str], str]],
+    transactions: list[tuple[str, str, str | None, str | None, str]],
     iban: str = "DE89370400440532013000",
     currency: str = "EUR",
     section: str = "Account",
-    date_range: Tuple[str, str] = ("January 1, 2025", "January 31, 2025"),
-    deposit_transactions: Optional[
-        List[Tuple[str, str, Optional[str], Optional[str], str]]
-    ] = None,
-    sub_accounts: Optional[List[_SubAccountSection]] = None,
-    sort_code: Optional[str] = None,
-    account_number: Optional[str] = None,
+    date_range: tuple[str, str] = ("January 1, 2025", "January 31, 2025"),
+    deposit_transactions: (
+        list[tuple[str, str, str | None, str | None, str]] | None
+    ) = None,
+    sub_accounts: list[_SubAccountSection] | None = None,
+    sort_code: str | None = None,
+    account_number: str | None = None,
 ) -> str:
     """Generate a minimal Revolut-style PDF and return its path.
 
@@ -153,7 +155,7 @@ def _make_pdf(
 
 
 def _make_csv(
-    rows: List[Tuple[str, str, str, str, str, str, str, str, str, str]],
+    rows: list[tuple[str, str, str, str, str, str, str, str, str, str]],
 ) -> str:
     """Generate a minimal Revolut CSV file and return its path.
 
@@ -1011,7 +1013,6 @@ class TestPDFParser:
             ("15 janeiro 2025", 2025, 1, 15),  # Portuguese
             ("15 januari 2025", 2025, 1, 15),  # Dutch
             ("15 stycznia 2025", 2025, 1, 15),  # Polish (genitive — standard form)
-            ("15 stycznia 2025", 2025, 1, 15),  # dup guard
             ("15 sierpnia 2025", 2025, 8, 15),  # Polish genitive
             ("15 grudnia 2025", 2025, 12, 15),  # Polish genitive
             ("15 März 2025", 2025, 3, 15),  # German (umlaut)
@@ -1109,7 +1110,7 @@ class TestPDFParser:
         self,
         header: str,
         section: str,
-        owner: Optional[str],
+        owner: str | None,
     ) -> None:
         """Section header must be recognised across languages + connectors."""
         m = _SECTION_RE.match(header)
@@ -1203,7 +1204,7 @@ class TestPDFParser:
         try:
             stmt = RevolutPlugin(UI(), {}).get_parser(path).parse()
             # No primary (USD) amount present → falls back to 0
-            assert stmt.lines[0].amount == Decimal("0")
+            assert stmt.lines[0].amount == Decimal(0)
         finally:
             os.unlink(path)
 
@@ -2130,12 +2131,12 @@ class TestCSVParser:
         assert _parse_csv_amount("10,00") == Decimal("10.00")
         assert _parse_csv_amount("1,5") == Decimal("1.5")
         # Thousands-only (no decimal)
-        assert _parse_csv_amount("1,234") == Decimal("1234")
-        assert _parse_csv_amount("1.234") == Decimal("1234")
-        assert _parse_csv_amount("1,234,567") == Decimal("1234567")
+        assert _parse_csv_amount("1,234") == Decimal(1234)
+        assert _parse_csv_amount("1.234") == Decimal(1234)
+        assert _parse_csv_amount("1,234,567") == Decimal(1234567)
         # Plain integers / negatives / whitespace
-        assert _parse_csv_amount("0") == Decimal("0")
-        assert _parse_csv_amount("  -42  ") == Decimal("-42")
+        assert _parse_csv_amount("0") == Decimal(0)
+        assert _parse_csv_amount("  -42  ") == Decimal(-42)
 
     def test_csv_header_resolves_localized_aliases(self) -> None:
         """CSV with German column headers must resolve via alias table."""

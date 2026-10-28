@@ -13,13 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 import csv
 import hashlib
 import logging
 from collections import Counter
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Set, Tuple
 
 from ofxstatement.exceptions import ParseError
 from ofxstatement.parser import AbstractStatementParser
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Timestamp formats accepted in the Completed Date / Started Date columns.
 # First match wins. Hedges against a future Revolut format change so one
 # wording tweak doesn't silently drop every row.
-_DATE_FORMATS: Tuple[str, ...] = (
+_DATE_FORMATS: tuple[str, ...] = (
     "%Y-%m-%d %H:%M:%S",  # 2025-01-15 10:30:00 (current Revolut format)
     "%Y-%m-%dT%H:%M:%S",  # 2025-01-15T10:30:00 (ISO 8601)
     "%Y-%m-%dT%H:%M:%S.%f",  # 2025-01-15T10:30:00.123456
@@ -41,7 +42,7 @@ _DATE_FORMATS: Tuple[str, ...] = (
 
 # State values that mean "this transaction settled and should be imported".
 # Matched case-insensitively. Pending / reverted / declined states are dropped.
-_ACCEPTED_STATES: Set[str] = {"COMPLETED", "COMPLETE", "SETTLED", "POSTED"}
+_ACCEPTED_STATES: set[str] = {"COMPLETED", "COMPLETE", "SETTLED", "POSTED"}
 
 
 def _parse_csv_date(date_str: str) -> datetime:
@@ -81,9 +82,8 @@ def _parse_csv_amount(s: str) -> Decimal:
             s = s.replace(",", ".")
         else:
             s = s.replace(",", "")
-    elif has_dot:
-        if s.count(".") != 1 or not (1 <= len(s) - s.rfind(".") - 1 <= 2):
-            s = s.replace(".", "")
+    elif has_dot and (s.count(".") != 1 or not (1 <= len(s) - s.rfind(".") - 1 <= 2)):
+        s = s.replace(".", "")
 
     return Decimal(s)
 
@@ -103,7 +103,7 @@ def _parse_csv_amount(s: str) -> Decimal:
 # exports have always used English headers even on localized accounts, but
 # listing translations here is cheap insurance — if a future localized export
 # renames "Amount" to "Betrag" we pick it up without code changes.
-_FIELD_ALIASES: Dict[str, List[str]] = {
+_FIELD_ALIASES: dict[str, list[str]] = {
     "type": [
         "Type",  # EN
         "Typ",  # DE / PL
@@ -221,7 +221,7 @@ class RevolutCSVFormatError(ValueError):
     """Raised when the CSV header is missing columns the parser requires."""
 
 
-def _resolve_columns(header: List[str]) -> Dict[str, int]:
+def _resolve_columns(header: list[str]) -> dict[str, int]:
     """Map logical field names to positional indices in the given header row.
 
     Matching is case-insensitive and whitespace-tolerant so small cosmetic
@@ -230,8 +230,8 @@ def _resolve_columns(header: List[str]) -> Dict[str, int]:
     absent.
     """
     positions = {h.strip().casefold(): i for i, h in enumerate(header)}
-    resolved: Dict[str, int] = {}
-    missing: List[str] = []
+    resolved: dict[str, int] = {}
+    missing: list[str] = []
     for field, aliases in _FIELD_ALIASES.items():
         for alias in aliases:
             idx = positions.get(alias.casefold())
@@ -258,7 +258,7 @@ def _resolve_columns(header: List[str]) -> Dict[str, int]:
 # Entries marked ★ are confirmed against real Revolut CSV exports (2026).
 # Entries marked ○ are best-effort for types not yet observed in the wild.
 # If you encounter a misclassified transaction, please open an issue.
-CSV_TXN_TYPE_MAP: List[Tuple[str, str]] = [
+CSV_TXN_TYPE_MAP: list[tuple[str, str]] = [
     # ── Transfers ─────────────────────────────────────────────────────────
     ("Transfer", "XFER"),  # ★ SEPA transfers, internal moves, person-to-person
     # ── Card payments ─────────────────────────────────────────────────────
@@ -308,7 +308,7 @@ class RevolutCSVParser(AbstractStatementParser):
         self,
         filename: str,
         account: str = "Current",
-        currency: Optional[str] = None,
+        currency: str | None = None,
         account_id: str = "",
         exclude_internal_pocket_transfers: bool = False,
     ):
@@ -318,12 +318,12 @@ class RevolutCSVParser(AbstractStatementParser):
         # When set, it acts as an explicit filter — rows in other
         # currencies are dropped (with a warning if the chosen currency
         # isn't present in the file at all).
-        self.currency: Optional[str] = currency
+        self.currency: str | None = currency
         self.account_id = account_id
         self.exclude_internal_pocket_transfers = exclude_internal_pocket_transfers
-        self._first_balance: Optional[Decimal] = None
-        self._first_row_net_delta: Optional[Decimal] = None
-        self._last_balance: Optional[Decimal] = None
+        self._first_balance: Decimal | None = None
+        self._first_row_net_delta: Decimal | None = None
+        self._last_balance: Decimal | None = None
 
     def parse(self) -> Statement:
         # Version line first so the user reading the convert output can
@@ -506,8 +506,8 @@ class RevolutCSVParser(AbstractStatementParser):
 
     def _resolve_currency(
         self,
-        rows: List[List[str]],
-        cols: Dict[str, int],
+        rows: list[list[str]],
+        cols: dict[str, int],
         max_index: int,
     ) -> None:
         """Decide ``self.currency`` from config + CSV contents.
@@ -572,17 +572,17 @@ class RevolutCSVParser(AbstractStatementParser):
         )
 
     @staticmethod
-    def _format_currency_counts(counts: "Counter[str]") -> str:
+    def _format_currency_counts(counts: Counter[str]) -> str:
         return ", ".join(
             f"{ccy}={n}" for ccy, n in sorted(counts.items(), key=lambda kv: -kv[1])
         )
 
     def _parse_row(
         self,
-        row: List[str],
+        row: list[str],
         row_num: int,
-        cols: Dict[str, int],
-    ) -> List[StatementLine]:
+        cols: dict[str, int],
+    ) -> list[StatementLine]:
         # Use completed date as the transaction date
         date_str = row[cols["completed"]].strip()
         try:
@@ -599,7 +599,7 @@ class RevolutCSVParser(AbstractStatementParser):
         # then show the user-initiated timestamp alongside the bank-completed
         # one, which matters for transactions that take a day or more to
         # settle (international transfers, top-ups in transit).
-        date_user: Optional[datetime] = None
+        date_user: datetime | None = None
         started_idx = cols.get("started")
         if started_idx is not None:
             started_str = row[started_idx].strip()
@@ -623,8 +623,8 @@ class RevolutCSVParser(AbstractStatementParser):
         fee_str = row[fee_idx].strip() if fee_idx is not None else ""
         try:
             csv_amount = _parse_csv_amount(amount_str)
-            fee = _parse_csv_amount(fee_str) if fee_str else Decimal("0")
-        except Exception:
+            fee = _parse_csv_amount(fee_str) if fee_str else Decimal(0)
+        except (ValueError, ArithmeticError):
             logger.warning(
                 "Row %d: cannot parse amount=%r fee=%r, skipping",
                 row_num,
@@ -646,8 +646,10 @@ class RevolutCSVParser(AbstractStatementParser):
                     self._first_balance = balance
                     self._first_row_net_delta = net_delta
                 self._last_balance = balance
-            except Exception:
-                pass
+            except (ValueError, ArithmeticError, IndexError):
+                logger.debug(
+                    "Row %d: no usable balance, skipping it for start/end", row_num
+                )
 
         # Pure-fee row: amount column is 0 with a non-zero fee (e.g. a
         # standalone "Premium plan fee" charge). Emit a single FEE line
@@ -705,8 +707,8 @@ class RevolutCSVParser(AbstractStatementParser):
 
     def _classify_trntype(
         self,
-        row: List[str],
-        cols: Dict[str, int],
+        row: list[str],
+        cols: dict[str, int],
         amount: Decimal,
         description: str,
         row_num: int,

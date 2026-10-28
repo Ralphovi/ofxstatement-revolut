@@ -13,11 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from ofxstatement.plugin import Plugin
 from ofxstatement.parser import AbstractStatementParser
+from ofxstatement.plugin import Plugin
 
-from ofxstatement_revolut.pdf_parser import RevolutPDFParser
 from ofxstatement_revolut.csv_parser import RevolutCSVParser
+from ofxstatement_revolut.pdf_parser import RevolutPDFParser
 
 
 class RevolutPlugin(Plugin):

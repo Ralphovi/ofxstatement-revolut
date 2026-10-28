@@ -13,15 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Set, Tuple
 
 import pdfplumber
-
 from ofxstatement.parser import AbstractStatementParser
 from ofxstatement.statement import Statement, StatementLine
 
@@ -52,7 +52,7 @@ _DEFAULT_BALANCE_X = 500.0
 #
 # Cross-language collisions are fine as long as both sides map to the same
 # month (validated at module load) — e.g. "mai" → 5 in DE, NL, and FR.
-_MONTHS_BY_LANGUAGE: Dict[str, Tuple[Tuple[str, ...], ...]] = {
+_MONTHS_BY_LANGUAGE: dict[str, tuple[tuple[str, ...], ...]] = {
     # ISO 639-1 code → 12 cells, one per month.
     "en": (
         ("jan", "january"),
@@ -179,7 +179,7 @@ _MONTHS_BY_LANGUAGE: Dict[str, Tuple[Tuple[str, ...], ...]] = {
 
 # Flattened lookup: alias → month number (1..12). Collisions across languages
 # are allowed as long as they map to the same month (checked at load time).
-_MONTH_NAMES: Dict[str, int] = {}
+_MONTH_NAMES: dict[str, int] = {}
 for _lang, _months in _MONTHS_BY_LANGUAGE.items():
     assert len(_months) == 12, f"{_lang!r} row must have 12 months"
     for _idx, _aliases in enumerate(_months):
@@ -216,7 +216,7 @@ _DATE_RE = re.compile(
 
 # Numeric-only strptime formats. Month-name formats bypass strptime entirely
 # (see _parse_date) so we avoid %b's locale dependency.
-_NUMERIC_DATE_FORMATS: Tuple[str, ...] = (
+_NUMERIC_DATE_FORMATS: tuple[str, ...] = (
     "%Y-%m-%d",
     "%d/%m/%Y",
 )
@@ -248,7 +248,7 @@ _SECTION_CONNECTOR = r"(?:to|bis|au|à|até|hasta|al|a|tot|do|-)"
 # Section-type word lists, one per canonical English label. _SECTION_RE
 # matches either set; _canonical_section() maps the matched word back to
 # "Account" or "Deposit" so downstream filtering stays language-independent.
-_SECTION_ACCOUNT_ALIASES: Tuple[str, ...] = (
+_SECTION_ACCOUNT_ALIASES: tuple[str, ...] = (
     "Account",
     "Konto",
     "Compte",
@@ -258,7 +258,7 @@ _SECTION_ACCOUNT_ALIASES: Tuple[str, ...] = (
     "Rekening",
     "Rachunek",
 )
-_SECTION_DEPOSIT_ALIASES: Tuple[str, ...] = (
+_SECTION_DEPOSIT_ALIASES: tuple[str, ...] = (
     "Deposit",
     "Savings",
     "Einlage",
@@ -323,7 +323,7 @@ _IBAN_RE = re.compile(r"IBAN\s+([A-Z]{2}\d{2}[A-Z0-9]+)")
 # The word "Statement" is translated on non-English exports, so we accept
 # any of the known localized equivalents. Using an explicit list instead
 # of "<CUR> <any-word>" avoids false matches on lines like "CEO JANE".
-_STATEMENT_WORDS: Tuple[str, ...] = (
+_STATEMENT_WORDS: tuple[str, ...] = (
     "Statement",  # EN
     "Kontoauszug",
     "Kontoauszüge",  # DE
@@ -364,7 +364,7 @@ _REVERTED_RE = re.compile(r"^Reverted\b", re.IGNORECASE)
 # detector matches on the *first* token of a multi-word alias (so "Money out"
 # and "Paid out" are distinguished at x-classification time, not at the
 # alias level).
-_HEADER_ALIASES: Dict[str, List[str]] = {
+_HEADER_ALIASES: dict[str, list[str]] = {
     "date": [
         "Date",  # EN / FR
         "Datum",  # DE / NL
@@ -458,7 +458,7 @@ _HEADER_ALIASES: Dict[str, List[str]] = {
 # Keywords used by the generic fee fallback when no transaction-type prefix
 # matches. Multilingual so "Gebühr" / "frais" / "tassa" / "tarifa" / "taxa"
 # / "opłata" trigger FEE classification.
-_FEE_WORDS: Tuple[str, ...] = (
+_FEE_WORDS: tuple[str, ...] = (
     "fee",  # EN
     "gebühr",
     "gebuhr",  # DE
@@ -481,12 +481,12 @@ _FEE_RE = re.compile(
 )
 
 
-def _first_tokens(aliases: List[str]) -> Set[str]:
+def _first_tokens(aliases: list[str]) -> set[str]:
     """Lowercased first tokens of each alias, for position-based matching."""
     return {a.split(" ", 1)[0].casefold() for a in aliases}
 
 
-_HEADER_FIRST_TOKENS: Dict[str, Set[str]] = {
+_HEADER_FIRST_TOKENS: dict[str, set[str]] = {
     col: _first_tokens(_HEADER_ALIASES[col]) for col in _HEADER_ALIASES
 }
 
@@ -504,7 +504,7 @@ def _looks_like_header_row(line_text: str) -> bool:
     if not tokens:
         return False
 
-    found: Dict[str, bool] = {col: False for col in _HEADER_ALIASES}
+    found: dict[str, bool] = {col: False for col in _HEADER_ALIASES}
     # money_out/money_in share first tokens in some languages ("Paid out" /
     # "Paid in"); count matches separately so "Paid out Paid in" counts as
     # both columns rather than one.
@@ -562,7 +562,7 @@ class RevolutPDFFormatError(ValueError):
 # Currencies Revolut writes with a leading symbol (e.g. "$19.61", "€50.00").
 # Anything not in this map is written with a trailing ISO code
 # (e.g. "29,155.00 TRY", "120.50 CHF").
-_PREFIX_SYMBOLS: Dict[str, str] = {
+_PREFIX_SYMBOLS: dict[str, str] = {
     "EUR": "€",
     "USD": "$",
     "GBP": "£",
@@ -590,7 +590,7 @@ _TRAILING_CODE_RE = re.compile(r"\s*[A-Z]{3}$")
 # Entries marked ★ are confirmed against real Revolut EUR statements (2026).
 # Entries marked ○ are best-effort for keywords not yet observed in the wild.
 # If you encounter a misclassified transaction, please open an issue.
-PDF_TXN_TYPE_MAP: List[Tuple[str, str]] = [
+PDF_TXN_TYPE_MAP: list[tuple[str, str]] = [
     # ── Transfers ─────────────────────────────────────────────────────────
     ("Transfer to", "XFER"),  # ★ outgoing transfer to person/account
     ("Transfer from", "XFER"),  # ★ incoming transfer from person/account
@@ -653,9 +653,7 @@ def _is_foreign_amount(text: str, currency: str) -> bool:
         return True
     # Trailing three-letter code that isn't our currency
     m = _TRAILING_CODE_RE.search(text)
-    if m and text.rstrip()[-3:] != currency:
-        return True
-    return False
+    return bool(m and text.rstrip()[-3:] != currency)
 
 
 def _make_id(date: datetime, amount: Decimal, memo: str) -> str:
@@ -686,15 +684,15 @@ class _RawTransaction:
         self,
         date_str: str,
         description: str,
-        money_out: Optional[str],
-        money_in: Optional[str],
-        balance: Optional[str],
+        money_out: str | None,
+        money_in: str | None,
+        balance: str | None,
         section: str,
-        owner: Optional[str],
+        owner: str | None,
     ):
         self.date_str = date_str
         self.description = description
-        self.detail_lines: List[str] = []
+        self.detail_lines: list[str] = []
         self.money_out = money_out
         self.money_in = money_in
         self.balance = balance
@@ -707,7 +705,7 @@ class RevolutPDFParser(AbstractStatementParser):
         self,
         filename: str,
         account: str = "Current",
-        currency: Optional[str] = None,
+        currency: str | None = None,
         account_id: str = "",
         exclude_internal_pocket_transfers: bool = False,
     ):
@@ -802,7 +800,7 @@ class RevolutPDFParser(AbstractStatementParser):
                         _parse_amount(filtered[0].money_in)
                         if filtered[0].money_in
                         and _is_primary_amount(filtered[0].money_in, cur)
-                        else Decimal("0")
+                        else Decimal(0)
                     )
                 )
                 first_balance = _parse_amount(filtered[0].balance)
@@ -827,8 +825,8 @@ class RevolutPDFParser(AbstractStatementParser):
         return statement
 
     def _filter_transactions(
-        self, raw_transactions: List[_RawTransaction]
-    ) -> List[_RawTransaction]:
+        self, raw_transactions: list[_RawTransaction]
+    ) -> list[_RawTransaction]:
         """Filter raw transactions based on the account setting.
 
         The account setting can be:
@@ -857,9 +855,9 @@ class RevolutPDFParser(AbstractStatementParser):
     def _extract_all_transactions(self) -> list:
         """Parse every transaction from the PDF across all pages and sections."""
         transactions: list = []
-        current_section: Optional[str] = None
-        current_owner: Optional[str] = None
-        current_txn: Optional[_RawTransaction] = None
+        current_section: str | None = None
+        current_owner: str | None = None
+        current_txn: _RawTransaction | None = None
         in_table = False
         self._sections_seen = 0
         self._header_rows_seen = 0
@@ -1029,10 +1027,10 @@ class RevolutPDFParser(AbstractStatementParser):
         resolved or if the resulting thresholds aren't strictly increasing
         (which would indicate we mis-identified one of the columns).
         """
-        date_x: Optional[float] = None
-        desc_x: Optional[float] = None
-        balance_x: Optional[float] = None
-        money_positions: List[float] = []
+        date_x: float | None = None
+        desc_x: float | None = None
+        balance_x: float | None = None
+        money_positions: list[float] = []
 
         date_first = _HEADER_FIRST_TOKENS["date"]
         desc_first = _HEADER_FIRST_TOKENS["description"]
@@ -1136,8 +1134,8 @@ class RevolutPDFParser(AbstractStatementParser):
             return m.group(1)
         return ""
 
-    def _group_words_by_line(self, words: list) -> Dict[int, list]:
-        lines: Dict[int, list] = {}
+    def _group_words_by_line(self, words: list) -> dict[int, list]:
+        lines: dict[int, list] = {}
         for w in words:
             y = round(w["top"] / 3) * 3
             if y not in lines:
@@ -1155,7 +1153,7 @@ class RevolutPDFParser(AbstractStatementParser):
         elif raw.money_in and _is_primary_amount(raw.money_in, cur):
             sl.amount = _parse_amount(raw.money_in)
         else:
-            sl.amount = Decimal("0")
+            sl.amount = Decimal(0)
             logger.warning(
                 "Transaction on %s has no %s amount: %r (out=%r, in=%r)",
                 raw.date_str,

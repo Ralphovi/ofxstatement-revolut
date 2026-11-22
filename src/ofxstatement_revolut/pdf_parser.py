@@ -1001,10 +1001,13 @@ class RevolutPDFParser(AbstractStatementParser):
                             section=current_section,
                             owner=current_owner,
                         )
-                    elif current_txn and desc_text:
-                        # Detail/continuation line - skip secondary currency lines
-                        if not _is_foreign_amount(desc_text, self.currency):
-                            current_txn.detail_lines.append(desc_text)
+                    elif (
+                        current_txn
+                        and desc_text
+                        and not _is_foreign_amount(desc_text, self.currency)
+                    ):
+                        # Detail/continuation line; secondary currency lines are skipped
+                        current_txn.detail_lines.append(desc_text)
 
         if current_txn:
             transactions.append(current_txn)
